@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Asistente Opciones Online</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body { font-family: Arial; margin:0; padding:0; background:#f5f5f5; }
+.container { display:flex; flex-wrap: wrap; padding:10px; }
+.panel { background:#fff; border-radius:10px; padding:10px; margin:10px; flex:1 1 400px; box-shadow:0 0 5px rgba(0,0,0,0.2);}
+h2 { color:#2e7d32; margin-bottom:2px; }
+.schedule { color:#555; font-size:0.9em; margin-bottom:5px; }
+table { width:100%; border-collapse:collapse; margin-top:5px; }
+th, td { padding:5px; text-align:left; border-bottom:1px solid #ddd; }
+button { background:#2e7d32; color:white; border:none; padding:5px 10px; border-radius:5px; cursor:pointer; }
+button:hover { background:#1b5e20; }
+.popup { display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+       background:white; border:1px solid #ccc; padding:20px; border-radius:10px; z-index:10; width:320px; max-height:80%; overflow:auto;}
+.overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); z-index:5; }
+.login { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:20; }
+.login-box { background:white; padding:20px; border-radius:10px; width:300px; text-align:center; }
+.login-box input { width:90%; padding:5px; margin:5px 0; }
+.loading { display:none; text-align:center; margin:10px; }
+.chart-container { margin-top:10px; }
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div class="login" id="loginScreen">
+  <div class="login-box">
+    <h2>Iniciar Sesión API</h2>
+    <input type="text" id="usuario" placeholder="Usuario"><br>
+    <input type="password" id="clave" placeholder="Clave/API Token"><br>
+    <button onclick="login()">Iniciar</button>
+  </div>
+</div>
+
+<!-- Loading GIF -->
+<div class="loading" id="loading">
+  <img src="https://i.gifer.com/YCZH.gif" width="50"><br>
+  Consultando datos del mercado...
+</div>
+
+<div class="container" id="app" style="display:none;">
+
+  <!-- Venta Call -->
+  <div class="panel" id="callPanel">
+    <h2>VENTA DE CALL SUGERIDAS</h2>
+    <p class="schedule" id="callSchedule"></p>
+    <table id="callTable">
+      <thead><tr><th>Ticker</th><th>Strike</th><th>Prima</th><th>Días</th><th>Acción</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="chart-container">
+      <canvas id="callChart"></canvas>
+    </div>
+    <button onclick="showPopup('callHelp')">Indicadores</button>
+    <button onclick="showPopup('call6m')">Velas 6 Meses</button>
+  </div>
+
+  <!-- Covered Call -->
+  <div class="panel" id="coveredPanel">
+    <h2>COMPRA DE COVER CALL SUGERIDAS</h2>
+    <p class="schedule" id="coveredSchedule"></p>
+    <table id="coveredTable">
+      <thead><tr><th>Ticker</th><th>Strike</th><th>Prima</th><th>Días</th><th>Contrato</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="chart-container">
+      <canvas id="coveredChart"></canvas>
+    </div>
+    <button onclick="showPopup('coveredHelp')">Indicadores</button>
+    <button onclick="showPopup('covered6m')">Velas 6 Meses</button>
+  </div>
+
+</div>
+
+<!-- Popups -->
+<div class="overlay" id="overlay" onclick="closePopup()"></div>
+<div class="popup" id="callHelp"><h3>Indicadores Call</h3><p>Open Interest, Theta, Beta, Ganancia/Pérdida Máx., Broken Point</p></div>
+<div class="popup" id="coveredHelp"><h3>Indicadores Covered Call</h3><p>Contrato completo obligatorio, liquidez y OI</p></div>
+<div class="popup" id="call6m"><h3>Velas Últimos 6 Meses - Venta Call</h3><canvas id="call6mChart"></canvas></div>
+<div class="popup" id="covered6m"><h3>Velas Últimos 6 Meses - Covered Call</h3><canvas id="covered6mChart"></canvas></div>
+
+<script>
+let token='';
+
+// UI funciones
+function login(){
+  let u=document.getElementById('usuario').value;
+  let k=document.getElementById('clave').value;
+  if(u && k){ 
+    token=k;
+    document.getElementById('loginScreen').style.display='none';
+    document.getElementById('loading').style.display='block';
+    fetchAndRender();
+  } else alert('Ingrese usuario y clave');
+}
+function showPopup(id){
+  document.getElementById('overlay').style.display='block'; 
+  document.getElementById(id).style.display='block';
+}
+function closePopup(){
+  document.getElementById('overlay').style.display='none';
+  document.querySelectorAll('.popup').forEach(p=>p.style.display='none');
+}
+
+// Función multi-fuente online
+async function getMarketData(ticker){
+  try { 
+    let resIOL=await fetch(`https://api.iol.com.ar/option?ticker=${ticker}&token=${token}`);
+    if(resIOL.ok) return await resIOL.json();
+    throw "IOL falla";
+  } catch {
+    try {
+      let resY=await fetch(`https://query1.finance.yahoo.com/v7/finance/options/${ticker}`);
+      if(resY.ok) return await resY.json();
+      throw "Yahoo falla";
+    } catch {
+      try {
+        let resG=await fetch(`https://finance.google.com/finance?q=${ticker}&output=json`);
+        if(resG.ok) return await resG.json();
+        throw "Google falla";
+      } catch(e){ 
+        console.error("Todos fallaron", e); 
+        return null; 
+      }
+    }
+  }
+}
+
+// Render tablas y gráficos
+async function fetchAndRender(){
+  const callTickers=['AAPL','MELI','PAMP','C','GGAL'];
+  const coveredTickers=['GGAL','TS','X','GOOGL','MELI'];
+
+  document.getElementById('callSchedule').textContent="Lunes y Miércoles | 11:00–15:00";
+  document.getElementById('coveredSchedule').textContent="Martes y Jueves | 10:00–14:00";
+
+  let callTable=document.querySelector('#callTable tbody');
+  let coveredTable=document.querySelector('#coveredTable tbody');
+
+  for(let t of callTickers){
+    let data=await getMarketData(t);
+    callTable.innerHTML += `<tr><td>${t}</td><td>${data?.strike||'--'}</td><td>${data?.premium||'--'}</td><td>${data?.days||30}</td><td><button>Consultar</button></td></tr>`;
+  }
+  for(let t of coveredTickers){
+    let data=await getMarketData(t);
+    coveredTable.innerHTML += `<tr><td>${t}</td><td>${data?.strike||'--'}</td><td>${data?.premium||'--'}</td><td>${data?.days||30}</td><td>${data?.contract||'--'}</td></tr>`;
+  }
+
+  document.getElementById('loading').style.display='none';
+  document.getElementById('app').style.display='flex';
+
+  // Gráficos últimos 30 días
+  const ctxCall=document.getElementById('callChart').getContext('2d');
+  new Chart(ctxCall,{type:'line',data:{labels:['D-30','D-25','D-20','D-15','D-10','D-5','Hoy'],datasets:[{label:'Precio',data:[150,155,160,158,162,165,175],borderColor:'#2e7d32',fill:false}]}});
+  
+  const ctxCovered=document.getElementById('coveredChart').getContext('2d');
+  new Chart(ctxCovered,{type:'line',data:{labels:['D-30','D-25','D-20','D-15','D-10','D-5','Hoy'],datasets:[{label:'Precio',data:[1800,1850,1820,1870,1900,1950,2000],borderColor:'#1b5e20',fill:false}]}});
+  
+  // Gráficos 6 meses pop-up
+  const ctxCall6=document.getElementById('call6mChart').getContext('2d');
+  new Chart(ctxCall6,{type:'line',data:{labels:['M-6','M-5','M-4','M-3','M-2','M-1','Hoy'],datasets:[{label:'Precio',data:[130,140,150,160,165,170,175],borderColor:'#2e7d32',fill:false}]}});
+  
+  const ctxCovered6=document.getElementById('covered6mChart').getContext('2d');
+  new Chart(ctxCovered6,{type:'line',data:{labels:['M-6','M-5','M-4','M-3','M-2','M-1','Hoy'],datasets:[{label:'Precio',data:[1600,1650,1700,1750,1850,1900,2000],borderColor:'#1b5e20',fill:false}]}});
+}
+</script>
+</body>
+</html>
