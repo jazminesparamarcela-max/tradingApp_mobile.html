@@ -1,177 +1,250 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<title>Asistente Opciones Online</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<style>
-body { font-family: Arial; margin:0; padding:0; background:#f5f5f5; }
-.container { display:flex; flex-wrap: wrap; padding:10px; }
-.panel { background:#fff; border-radius:10px; padding:10px; margin:10px; flex:1 1 400px; box-shadow:0 0 5px rgba(0,0,0,0.2);}
-h2 { color:#2e7d32; margin-bottom:2px; }
-.schedule { color:#555; font-size:0.9em; margin-bottom:5px; }
-table { width:100%; border-collapse:collapse; margin-top:5px; }
-th, td { padding:5px; text-align:left; border-bottom:1px solid #ddd; }
-button { background:#2e7d32; color:white; border:none; padding:5px 10px; border-radius:5px; cursor:pointer; }
-button:hover { background:#1b5e20; }
-.popup { display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
-       background:white; border:1px solid #ccc; padding:20px; border-radius:10px; z-index:10; width:320px; max-height:80%; overflow:auto;}
-.overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); z-index:5; }
-.login { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:20; }
-.login-box { background:white; padding:20px; border-radius:10px; width:300px; text-align:center; }
-.login-box input { width:90%; padding:5px; margin:5px 0; }
-.loading { display:none; text-align:center; margin:10px; }
-.chart-container { margin-top:10px; }
-</style>
-</head>
-<body>
+  <meta charset="UTF-8" />
+  <title>Ploutoforos — Método de Opciones</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-<!-- Login -->
-<div class="login" id="loginScreen">
-  <div class="login-box">
-    <h2>Iniciar Sesión API</h2>
-    <input type="text" id="usuario" placeholder="Usuario"><br>
-    <input type="password" id="clave" placeholder="Clave/API Token"><br>
-    <button onclick="login()">Iniciar</button>
-  </div>
-</div>
+  <!-- TradingView -->
+  <script src="https://s3.tradingview.com/tv.js"></script>
 
-<!-- Loading GIF -->
-<div class="loading" id="loading">
-  <img src="https://i.gifer.com/YCZH.gif" width="50"><br>
-  Consultando datos del mercado...
-</div>
+  <style>
+    body {
+      margin: 0;
+      font-family: Inter, Arial, sans-serif;
+      background: #0e1117;
+      color: #e6edf3;
+    }
 
-<div class="container" id="app" style="display:none;">
+    header {
+      padding: 24px;
+      background: linear-gradient(135deg, #111827, #020617);
+      border-bottom: 1px solid #1f2937;
+    }
 
-  <!-- Venta Call -->
-  <div class="panel" id="callPanel">
-    <h2>VENTA DE CALL SUGERIDAS</h2>
-    <p class="schedule" id="callSchedule"></p>
-    <table id="callTable">
-      <thead><tr><th>Ticker</th><th>Strike</th><th>Prima</th><th>Días</th><th>Acción</th></tr></thead>
-      <tbody></tbody>
-    </table>
-    <div class="chart-container">
-      <canvas id="callChart"></canvas>
-    </div>
-    <button onclick="showPopup('callHelp')">Indicadores</button>
-    <button onclick="showPopup('call6m')">Velas 6 Meses</button>
-  </div>
+    h1 {
+      margin: 0;
+      font-size: 28px;
+    }
 
-  <!-- Covered Call -->
-  <div class="panel" id="coveredPanel">
-    <h2>COMPRA DE COVER CALL SUGERIDAS</h2>
-    <p class="schedule" id="coveredSchedule"></p>
-    <table id="coveredTable">
-      <thead><tr><th>Ticker</th><th>Strike</th><th>Prima</th><th>Días</th><th>Contrato</th></tr></thead>
-      <tbody></tbody>
-    </table>
-    <div class="chart-container">
-      <canvas id="coveredChart"></canvas>
-    </div>
-    <button onclick="showPopup('coveredHelp')">Indicadores</button>
-    <button onclick="showPopup('covered6m')">Velas 6 Meses</button>
-  </div>
+    h2 {
+      margin-top: 40px;
+      border-left: 4px solid #22c55e;
+      padding-left: 12px;
+    }
 
-</div>
+    .container {
+      padding: 24px;
+      max-width: 1200px;
+      margin: auto;
+    }
 
-<!-- Popups -->
-<div class="overlay" id="overlay" onclick="closePopup()"></div>
-<div class="popup" id="callHelp"><h3>Indicadores Call</h3><p>Open Interest, Theta, Beta, Ganancia/Pérdida Máx., Broken Point</p></div>
-<div class="popup" id="coveredHelp"><h3>Indicadores Covered Call</h3><p>Contrato completo obligatorio, liquidez y OI</p></div>
-<div class="popup" id="call6m"><h3>Velas Últimos 6 Meses - Venta Call</h3><canvas id="call6mChart"></canvas></div>
-<div class="popup" id="covered6m"><h3>Velas Últimos 6 Meses - Covered Call</h3><canvas id="covered6mChart"></canvas></div>
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
 
-<script>
-let token='';
-
-// UI funciones
-function login(){
-  let u=document.getElementById('usuario').value;
-  let k=document.getElementById('clave').value;
-  if(u && k){ 
-    token=k;
-    document.getElementById('loginScreen').style.display='none';
-    document.getElementById('loading').style.display='block';
-    fetchAndRender();
-  } else alert('Ingrese usuario y clave');
-}
-function showPopup(id){
-  document.getElementById('overlay').style.display='block'; 
-  document.getElementById(id).style.display='block';
-}
-function closePopup(){
-  document.getElementById('overlay').style.display='none';
-  document.querySelectorAll('.popup').forEach(p=>p.style.display='none');
-}
-
-// Función multi-fuente online
-async function getMarketData(ticker){
-  try { 
-    let resIOL=await fetch(`https://api.iol.com.ar/option?ticker=${ticker}&token=${token}`);
-    if(resIOL.ok) return await resIOL.json();
-    throw "IOL falla";
-  } catch {
-    try {
-      let resY=await fetch(`https://query1.finance.yahoo.com/v7/finance/options/${ticker}`);
-      if(resY.ok) return await resY.json();
-      throw "Yahoo falla";
-    } catch {
-      try {
-        let resG=await fetch(`https://finance.google.com/finance?q=${ticker}&output=json`);
-        if(resG.ok) return await resG.json();
-        throw "Google falla";
-      } catch(e){ 
-        console.error("Todos fallaron", e); 
-        return null; 
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
       }
     }
+
+    .card {
+      background: #020617;
+      border: 1px solid #1f2937;
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    label {
+      display: block;
+      margin-top: 10px;
+      font-size: 14px;
+      color: #9ca3af;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 10px;
+      margin-top: 4px;
+      background: #020617;
+      color: #e6edf3;
+      border: 1px solid #374151;
+      border-radius: 6px;
+    }
+
+    button {
+      margin-top: 16px;
+      padding: 12px;
+      width: 100%;
+      background: #22c55e;
+      color: #020617;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .signal {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 8px;
+      font-weight: bold;
+      text-align: center;
+    }
+
+    .call { background: #14532d; color: #22c55e; }
+    .covered { background: #3f2a00; color: #facc15; }
+    .neutral { background: #1f2937; color: #9ca3af; }
+
+    footer {
+      margin-top: 60px;
+      padding: 24px;
+      text-align: center;
+      color: #6b7280;
+      border-top: 1px solid #1f2937;
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  <h1>Ploutoforos</h1>
+  <p>El método donde la opción cumple su función</p>
+</header>
+
+<div class="container">
+
+  <!-- CHART -->
+  <h2>📈 Contexto de mercado</h2>
+  <div class="card">
+    <div id="tvchart" style="height: 500px;"></div>
+  </div>
+
+  <!-- GRID -->
+  <div class="grid">
+
+    <!-- SEÑALES -->
+    <div class="card">
+      <h3>🔔 Señales Ploutoforos</h3>
+
+      <label>Ticker</label>
+      <select id="ticker">
+        <option value="AAPL">AAPL</option>
+        <option value="MSFT">MSFT</option>
+        <option value="SPY">SPY</option>
+        <option value="TSLA">TSLA</option>
+      </select>
+
+      <label>Contexto</label>
+      <select id="context">
+        <option value="alcista">Alcista</option>
+        <option value="lateral">Lateral</option>
+        <option value="volatil">Volátil</option>
+      </select>
+
+      <button onclick="signal()">Evaluar</button>
+
+      <div id="signalBox" class="signal neutral">
+        Esperando evaluación…
+      </div>
+    </div>
+
+    <!-- PAYOFF -->
+    <div class="card">
+      <h3>💰 Simulador de Payoff</h3>
+
+      <label>Precio actual</label>
+      <input id="price" type="number" value="100" />
+
+      <label>Strike</label>
+      <input id="strike" type="number" value="105" />
+
+      <label>Prima</label>
+      <input id="premium" type="number" value="3" />
+
+      <label>Estrategia</label>
+      <select id="strategy">
+        <option value="call">Compra de CALL</option>
+        <option value="covered">Venta de COVERED CALL</option>
+      </select>
+
+      <button onclick="payoff()">Calcular</button>
+
+      <div id="payoffResult" class="signal neutral">
+        —
+      </div>
+    </div>
+
+  </div>
+
+  <!-- EDUCACIÓN -->
+  <h2>📚 Método Ploutoforos</h2>
+  <div class="card">
+    <p><strong>1.</strong> La opción tiene una función, no una promesa.</p>
+    <p><strong>2.</strong> La salida importa más que la entrada.</p>
+    <p><strong>3.</strong> Cuando la prima está capturada, la opción ya cumplió.</p>
+    <p><strong>4.</strong> Covered Call es renta, no esperanza.</p>
+  </div>
+
+</div>
+
+<footer>
+  Ploutoforos © 2026 — Método de opciones
+</footer>
+
+<script>
+  new TradingView.widget({
+    container_id: "tvchart",
+    symbol: "NASDAQ:AAPL",
+    interval: "D",
+    theme: "dark",
+    style: "1",
+    locale: "es",
+    hide_side_toolbar: false,
+    allow_symbol_change: true
+  });
+
+  function signal() {
+    const ctx = document.getElementById("context").value;
+    const box = document.getElementById("signalBox");
+
+    if (ctx === "alcista") {
+      box.className = "signal call";
+      box.innerText = "🔼 COMPRA DE CALL sugerida";
+    } else if (ctx === "lateral") {
+      box.className = "signal covered";
+      box.innerText = "🟡 VENTA DE COVERED CALL sugerida";
+    } else {
+      box.className = "signal neutral";
+      box.innerText = "⚠️ No operar — esperar";
+    }
   }
-}
 
-// Render tablas y gráficos
-async function fetchAndRender(){
-  const callTickers=['AAPL','MELI','PAMP','C','GGAL'];
-  const coveredTickers=['GGAL','TS','X','GOOGL','MELI'];
+  function payoff() {
+    const p = +price.value;
+    const s = +strike.value;
+    const pr = +premium.value;
+    const st = strategy.value;
+    const box = document.getElementById("payoffResult");
 
-  document.getElementById('callSchedule').textContent="Lunes y Miércoles | 11:00–15:00";
-  document.getElementById('coveredSchedule').textContent="Martes y Jueves | 10:00–14:00";
-
-  let callTable=document.querySelector('#callTable tbody');
-  let coveredTable=document.querySelector('#coveredTable tbody');
-
-  for(let t of callTickers){
-    let data=await getMarketData(t);
-    callTable.innerHTML += `<tr><td>${t}</td><td>${data?.strike||'--'}</td><td>${data?.premium||'--'}</td><td>${data?.days||30}</td><td><button>Consultar</button></td></tr>`;
+    if (st === "call") {
+      box.className = "signal call";
+      box.innerText =
+        "Break-even: " + (s + pr) +
+        " | Riesgo limitado | Upside abierto";
+    } else {
+      box.className = "signal covered";
+      box.innerText =
+        "Ganancia máx: " + pr +
+        " | Protección parcial | Renta controlada";
+    }
   }
-  for(let t of coveredTickers){
-    let data=await getMarketData(t);
-    coveredTable.innerHTML += `<tr><td>${t}</td><td>${data?.strike||'--'}</td><td>${data?.premium||'--'}</td><td>${data?.days||30}</td><td>${data?.contract||'--'}</td></tr>`;
-  }
-
-  document.getElementById('loading').style.display='none';
-  document.getElementById('app').style.display='flex';
-
-  // Gráficos últimos 30 días
-  const ctxCall=document.getElementById('callChart').getContext('2d');
-  new Chart(ctxCall,{type:'line',data:{labels:['D-30','D-25','D-20','D-15','D-10','D-5','Hoy'],datasets:[{label:'Precio',data:[150,155,160,158,162,165,175],borderColor:'#2e7d32',fill:false}]}});
-  
-  const ctxCovered=document.getElementById('coveredChart').getContext('2d');
-  new Chart(ctxCovered,{type:'line',data:{labels:['D-30','D-25','D-20','D-15','D-10','D-5','Hoy'],datasets:[{label:'Precio',data:[1800,1850,1820,1870,1900,1950,2000],borderColor:'#1b5e20',fill:false}]}});
-  
-  // Gráficos 6 meses pop-up
-  const ctxCall6=document.getElementById('call6mChart').getContext('2d');
-  new Chart(ctxCall6,{type:'line',data:{labels:['M-6','M-5','M-4','M-3','M-2','M-1','Hoy'],datasets:[{label:'Precio',data:[130,140,150,160,165,170,175],borderColor:'#2e7d32',fill:false}]}});
-  
-  const ctxCovered6=document.getElementById('covered6mChart').getContext('2d');
-  new Chart(ctxCovered6,{type:'line',data:{labels:['M-6','M-5','M-4','M-3','M-2','M-1','Hoy'],datasets:[{label:'Precio',data:[1600,1650,1700,1750,1850,1900,2000],borderColor:'#1b5e20',fill:false}]}});
-}
 </script>
+
 </body>
 </html>
-rebuild pages
-
-
 
