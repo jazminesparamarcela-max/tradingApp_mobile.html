@@ -1,131 +1,167 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Ploutoforos | Opciones</title>
+<title>Ploutoforos — Motor de Opciones</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://s3.tradingview.com/tv.js"></script>
 <style>
-body{margin:0;font-family:Arial;background:#0d1117;color:#e6edf3}
-header{padding:16px;font-size:20px;font-weight:bold;border-bottom:1px solid #30363d}
-.container{display:grid;grid-template-columns:1fr;gap:16px;padding:16px}
-.card{background:#161b22;border-radius:10px;padding:16px}
-h2{margin-top:0;font-size:16px;color:#58a6ff}
-input,select,button{width:100%;padding:8px;margin:6px 0;background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:6px}
-button{background:#238636;font-weight:bold;cursor:pointer}
-.score{font-size:28px;font-weight:bold}
-.green{color:#3fb950}
-.yellow{color:#d29922}
-.red{color:#f85149}
-.small{font-size:12px;color:#8b949e}
-canvas{margin-top:12px}
+body {
+  margin:0;
+  background:#0b0f14;
+  color:#e6e6e6;
+  font-family: Inter, Arial, sans-serif;
+}
+header {
+  padding:16px;
+  border-bottom:1px solid #1f2937;
+}
+h1 { margin:0; font-size:22px; }
+.container {
+  display:grid;
+  grid-template-columns: 320px 1fr;
+  gap:16px;
+  padding:16px;
+}
+.card {
+  background:#111827;
+  border-radius:10px;
+  padding:14px;
+}
+input, select, button, textarea {
+  width:100%;
+  margin-top:6px;
+  padding:8px;
+  background:#020617;
+  color:#fff;
+  border:1px solid #1f2937;
+  border-radius:6px;
+}
+button {
+  cursor:pointer;
+  background:#2563eb;
+  border:none;
+}
+small { color:#9ca3af; }
+.score {
+  font-size:18px;
+  font-weight:bold;
+}
+.explain {
+  font-size:13px;
+  color:#cbd5f5;
+  margin-top:6px;
+}
+@media(max-width:900px){
+  .container { grid-template-columns:1fr; }
+}
 </style>
 </head>
 
 <body>
 
-<header>Ploutoforos – Opciones & Estrategias</header>
+<header>
+  <h1>Ploutoforos — Motor de Decisión en Opciones</h1>
+  <small>Compra de Call · Venta de Covered Call</small>
+</header>
 
 <div class="container">
 
-<!-- SELECTOR -->
+<!-- PANEL IZQUIERDO -->
 <div class="card">
-<h2>🔎 Analizar ticker</h2>
-<select id="ticker">
-<option>AAPL</option>
-<option>MSFT</option>
-<option>NVDA</option>
-<option>AMZN</option>
-<option>TSLA</option>
-</select>
-<button onclick="analizar()">Analizar</button>
-<div class="small">Fuente: mercado USA (simulado → API real)</div>
+  <h3>Analizar Ticker</h3>
+
+  <input id="ticker" placeholder="Ej: AAPL, SPY, GLD, TSLA">
+
+  <label>Precio actual</label>
+  <input id="price" type="number">
+
+  <label>Volumen (relativo)</label>
+  <select id="volume">
+    <option value="1">Bajo</option>
+    <option value="2">Medio</option>
+    <option value="3">Alto</option>
+  </select>
+
+  <label>Volatilidad</label>
+  <select id="vol">
+    <option value="1">Baja</option>
+    <option value="2">Media</option>
+    <option value="3">Alta</option>
+  </select>
+
+  <label>Tendencia</label>
+  <select id="trend">
+    <option value="1">Bajista</option>
+    <option value="2">Lateral</option>
+    <option value="3">Alcista</option>
+  </select>
+
+  <label>Días a vencimiento</label>
+  <input id="dte" type="number">
+
+  <button onclick="run()">Evaluar</button>
 </div>
 
-<!-- SCORE -->
+<!-- PANEL CENTRAL -->
 <div class="card">
-<h2>📊 Aptitud del activo</h2>
-<div id="scoreCall" class="score green">CALL: 82</div>
-<div id="scoreCovered" class="score yellow">COVERED CALL: 68</div>
-<div class="small">Cambia diariamente según volatilidad, volumen y contexto</div>
-</div>
+  <div id="tv" style="height:380px;"></div>
 
-<!-- CONTEXTO -->
-<div class="card">
-<h2>📐 Contexto técnico</h2>
-<div>Tendencia: Alcista</div>
-<div>Soporte: 182</div>
-<div>Resistencia: 195</div>
-<div>Volatilidad diaria: Media</div>
-<canvas id="priceChart"></canvas>
-</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">
 
-<!-- ESTRATEGIAS -->
-<div class="card">
-<h2>🟢 Compra de CALL – sugerencia</h2>
-<ul>
-<li>Strike: 190</li>
-<li>Vencimiento: 30 días</li>
-<li>Prima: 3.20</li>
-<li>Break-even: 193.20</li>
-<li>Motivo: ruptura de resistencia + momentum</li>
-</ul>
-<div class="small">Mejor horario: 11:30–13:00 NY</div>
-</div>
+    <div class="card">
+      <h3>Compra de Call</h3>
+      <div class="score" id="callScore">—</div>
+      <div class="explain" id="callExplain"></div>
+    </div>
 
-<div class="card">
-<h2>🟠 Venta de COVERED CALL – sugerencia</h2>
-<ul>
-<li>Strike: 195</li>
-<li>Vencimiento: 21 días</li>
-<li>Prima: 2.10</li>
-<li>Rendimiento mensual: 1.1%</li>
-<li>Prob. ejercicio: Baja</li>
-</ul>
-<div class="small">Mejor horario: últimos 60 min del mercado</div>
-</div>
+    <div class="card">
+      <h3>Venta de Covered Call</h3>
+      <div class="score" id="ccScore">—</div>
+      <div class="explain" id="ccExplain"></div>
+    </div>
 
-<!-- ROLLEO -->
-<div class="card">
-<h2>🔄 Evaluación de rolleo</h2>
-<div>Estado: Conviene capturar 70% y rollear</div>
-<div>Nuevo strike sugerido: 200</div>
-<div>Nuevo vencimiento: +30 días</div>
-</div>
-
-<!-- REGISTRO -->
-<div class="card">
-<h2>📘 Registrar operación real</h2>
-<input placeholder="Ticker">
-<select>
-<option>Compra de CALL</option>
-<option>Venta de Covered Call</option>
-</select>
-<input placeholder="Strike">
-<input placeholder="Vencimiento">
-<input placeholder="Resultado">
-<button>Guardar</button>
+  </div>
 </div>
 
 </div>
 
 <script>
-function analizar(){
-document.getElementById("scoreCall").innerText="CALL: "+(75+Math.floor(Math.random()*10));
-document.getElementById("scoreCovered").innerText="COVERED CALL: "+(60+Math.floor(Math.random()*10));
-}
+function run(){
+  const t = document.getElementById("ticker").value || "SPY";
+  const vol = +volume.value;
+  const iv = +document.getElementById("vol").value;
+  const trend = +document.getElementById("trend").value;
+  const dte = +document.getElementById("dte").value;
 
-const ctx=document.getElementById('priceChart');
-new Chart(ctx,{
-type:'line',
-data:{
-labels:['-6','-5','-4','-3','-2','-1','Hoy'],
-datasets:[{label:'Precio',data:[180,182,185,187,190,192,194],borderWidth:2}]
-},
-options:{plugins:{legend:{display:false}}}
-});
+  new TradingView.widget({
+    container_id:"tv",
+    symbol:t,
+    interval:"D",
+    theme:"dark",
+    style:"1",
+    locale:"es",
+    autosize:true
+  });
+
+  const callScore = (trend*2 + vol + (4-iv) + (dte>30?2:0));
+  const ccScore = (vol*2 + iv*2 + (trend>=2?1:0) + (dte<45?2:0));
+
+  callScoreEl.textContent = callScore + " / 10";
+  ccScoreEl.textContent = ccScore + " / 10";
+
+  callExplain.textContent =
+    callScore >=7
+    ? "Ticker apto para compra de call: contexto favorable, riesgo controlable y tiempo suficiente."
+    : "No es ideal para compra de call: falta tendencia, tiempo o el riesgo no compensa.";
+
+  ccExplain.textContent =
+    ccScore >=7
+    ? "Buen candidato para covered call: prima atractiva y contexto de probabilidad."
+    : "Covered call poco eficiente: prima baja o riesgo direccional.";
+}
 </script>
 
 </body>
 </html>
-
